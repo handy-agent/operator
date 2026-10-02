@@ -1,0 +1,22 @@
+[
+  {
+    "pk": "MULT#distance", "sk": "META", "kind": "tiers", "key": "distance_miles",
+    "note": "Gas and drive time from home base.",
+    "tiers": [ { "max": 10, "mult": 1.0 }, { "max": 25, "mult": 1.15 }, { "max": null, "mult": 1.3 } ]
+  },
+  {
+    "pk": "MULT#availability", "sk": "META", "kind": "manual",
+    "note": "Set by the owner: >1 when almost fully booked, <1 on a slow week.",
+    "value": 1.0
+  },
+  {
+    "pk": "MULT#location", "sk": "META", "kind": "lookup", "key": "state",
+    "note": "By state for now; can go down to city/zip later.",
+    "values": { "TX": 1.0 }, "default": 1.0
+  },
+  {
+    "pk": "MULT#lead_cost", "sk": "META", "kind": "add", "key": "lead_cost",
+    "note": "What the platform charged for this lead. Added on top, not multiplied.",
+    "default": 20
+  }
+]

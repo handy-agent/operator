@@ -1,0 +1,7 @@
+fastapi
+uvicorn[standard]
+claude-agent-sdk
+python-dotenv
+httpx
+pyyaml
+boto3

@@ -2,7 +2,8 @@
 #   the pricing catalog: services.json (services: sk META; subservices: sk SUB#<id>) and multipliers.json.
 #   Each kind ends up holding exactly what the seed files have (removed items are deleted), so it's safe
 #   to rerun. The table/endpoint come from the environment, so the same seeding runs locally and per stage.
-# When it runs: On a fresh local table (sh/dynamo-local.sh), by hand (sh/dynamo-seed.sh), and on deploy.
+# When it runs: On a fresh local table (sh/dynamo-local.sh), by hand (sh/dynamo-seed.sh), and when an AWS
+#   stage's init (operator-deploy) finds its table empty.
 # What calls it: sh/dynamo-seed.sh (python -m app.db.seed); tests.
 import json
 from pathlib import Path

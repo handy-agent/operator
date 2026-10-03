@@ -105,12 +105,12 @@ tested (see "What's built" below) except where noted as still open.
 ## Stack
 - Python + FastAPI + Claude Agent SDK (`claude-agent-sdk` pip package, Python 3.10+). Auth: see
   "Claude auth: Claude Platform on AWS" below.
-- Runs locally for now. AWS deployment is explicitly a separate future project — not in scope now.
-  Split (Roman, 2026-09-30): deploy config lives in a separate deploy repo; production and testing
+- Split (Roman, 2026-09-30): deploy config lives in a separate deploy repo; production and testing
   code live here.
-- AWS deployment (Roman, 2026-10-01) — requirements, not built:
-  - Same shape as github.com/realestate-lab/downpayment_deploy: separate deploy repo with documented
-    `sh/` scripts — `up.sh`/`down.sh` (local sandbox in Docker), `deploy.sh <stage>` per stage.
+- AWS deployment (Roman, 2026-10-01) — BUILT 2026-10-03 in `../operator-deploy` (how it works: its
+  `README.md`; decisions, status, open points: its `PLAN.md`). develop infra is up, not deployed yet.
+  - Same shape as github.com/realestate-lab/downpayment_deploy: separate deploy repo, a local Docker
+    sandbox, per-stage scripts (`stages/<stage>/init.sh|deploy.sh|…`).
   - Compute: one EC2 server (t4g.small, 2 GB, ~$17/mo) running Operator as one process — not Lambda.
     Why: Lambda needs the in-memory per-lead timers/batching, warm sessions and polling rebuilt
     (queues, locks); a server keeps them. EC2 over Lightsail: IAM role for Claude Platform on AWS
@@ -127,6 +127,29 @@ tested (see "What's built" below) except where noted as still open.
     the repo is self-contained — everything the agent reads lives inside it.
   - Deploy ships only runtime: `app/`, `agent/`, `requirements.txt` (+ `db/` as DynamoDB seed data).
     Never `CLAUDE.md`, `dev/`, `tests/`, `.env` (Roman, 2026-10-01).
+  - Stages (Roman, 2026-10-02): `develop` / `demo` / `production`, same as real estate.
+  - Infra (2026-10-02): SST v3, like real estate, but `sst.config.ts` lives in operator-deploy (not
+    here). Deploys run by hand via `stages/<stage>/deploy.sh` there (real estate has no CI either).
+  - Ingress (Roman, 2026-10-02): API Gateway HTTP API + VPC Link (Cloud Map) → uvicorn on the EC2
+    server. Rule: routing must cost no more than real estate's (~$1 per million requests). Rejected:
+    CloudFront VPC origin (server must sit in a private subnet → NAT ~$7+/mo), ALB (~$18/mo), Caddy
+    (cert renewal on the box). Cloudflare Tunnel is OK as a fallback.
+    - API Gateway cuts requests at 30 s: webhook routes must return fast. Checked 2026-10-02: Thumbtack
+      route hands off to the scheduler, Telegram route to `handle_soon` — both OK.
+  - Stages × Thumbtack (Roman, 2026-10-02):
+
+    | Stage | Thumbtack env | Thumbtack keys | Pro account | Customer test account | Domain | Webhook URL | OAuth redirect |
+    |---|---|---|---|---|---|---|---|
+    | local | production (now), staging later | production (now), staging later | ATX Handy Pros | friend's real account | `local.handyagent.dev` (Cloudflare Tunnel) | `https://local.handyagent.dev/webhooks/thumbtack` | `https://local.handyagent.dev/oauth/thumbtack/callback` (registered) |
+    | develop | staging | staging | staging test pro (unknown) | staging test customer (unknown) | `dev-api.handyagent.dev` | `https://dev-api.handyagent.dev/webhooks/thumbtack` | `https://dev-api.handyagent.dev/oauth/thumbtack/callback` (to request) |
+    | demo | staging | staging | staging test pro, shared or its own (unknown) | staging test customer (unknown) | `demo-api.handyagent.dev` | `https://demo-api.handyagent.dev/webhooks/thumbtack` | `https://demo-api.handyagent.dev/oauth/thumbtack/callback` (to request) |
+    | production | production | production | ATX Handy Pros, later each paying handyman | real customers | `api.handyagent.dev` | `https://api.handyagent.dev/webhooks/thumbtack` | `https://api.handyagent.dev/oauth/thumbtack/callback` (to request) |
+
+    - Until the new redirects are approved, every stage logs in through `local.handyagent.dev`.
+    - Only one stage at a time is registered on your real Thumbtack account; right now that's local.
+    - Each stage has its own Telegram bot, webhook secret and IAM role.
+    - `dev-api`, `demo-api`, `api` records are created in Cloudflare by each stage's first `init.sh`
+      (operator-deploy). `dev-api` exists since 2026-10-03; the hand-made placeholders were deleted.
 
 ## Layout
 - Standard standalone Python FastAPI layout (done): `app/` (runtime), `agent/`, `sim/` (simulator, never
@@ -510,8 +533,8 @@ without a deploy. Defaults = Roman's decisions (`app/settings.py`); an account s
 Settings: reply_delay_min/max_seconds (20/60), reply_max_wait_seconds (120), first_reply_immediate (on),
 operator_hold_seconds (600), alarm_every/for_seconds (5/300), session_warm_minutes (30, placeholder).
 Change: `sh/account-settings.sh <account> key=value` (customer-facing settings screen later).
-- Next (not built): the customer's business profile — name, sign-off, service area, services, home base
-  for distance — now lives in `agent/reply-style.md`, `disclosure-whitelist.md` and env, all Roman-specific.
+- Next (not built): the business profile per customer account. Today it's one profile from env (`BUSINESS_*`,
+  `BASE_LATITUDE/LONGITUDE` — see "Prompts and business profile"), i.e. one customer per deployed stage.
 
 ## Claude auth: Claude Platform on AWS (Roman, 2026-09-29) — not set up yet
 Deploy target is AWS; local testing must keep working. No static key anywhere.
@@ -519,11 +542,14 @@ Deploy target is AWS; local testing must keep working. No static key anywhere.
   fine for testing, not allowed for a product (Agent SDK docs). Console API key skipped.
 - Provider: Claude Platform on AWS (Anthropic-operated API, AWS auth, billed via AWS Marketplace).
 - Prod: IAM role attached to the service (SigV4 via AWS credential chain).
-- Local: `aws sso login --profile <p>` + `AWS_PROFILE=<p>` (short-lived creds).
+- Local: `aws login --profile handyagent` (short-lived creds; Identity Center/SSO isn't enabled) +
+  `AWS_PROFILE=handyagent-tools` (a profile over that session for tools that can't read `aws login`
+  sessions — see `../operator-deploy/README.md`). Not tried with the Claude binary yet.
 - Env (`.env`): `CLAUDE_CODE_USE_ANTHROPIC_AWS=1`, `ANTHROPIC_AWS_WORKSPACE_ID`, `AWS_REGION`.
   Agent SDK passes them to the Claude binary — no code change in `app/agent.py`.
 - Roman does: Marketplace subscribe (creates a separate Anthropic org), workspace, IAM permissions
-  (`aws-external-anthropic` actions) for the prod role and his SSO user.
+  (`aws-external-anthropic` actions) for the prod role and his own login. The stage server roles in
+  operator-deploy already allow `aws-external-anthropic:*` (placeholder until verified).
 - Verify: run sim with AWS creds and confirm it's not using the Claude Code login.
 
 ## DynamoDB (built, 2026-10-02)
@@ -542,3 +568,28 @@ Deploy target is AWS; local testing must keep working. No static key anywhere.
 - All prompt text lives in `agent/*.md`, loaded by `app/prompts.py` — none in Python.
 - The customer's business profile (owner, business name, services, service area) comes from env
   (`BUSINESS_*`, `app/business.py`), filled into the prompts. Missing value -> error, never a blank to a lead.
+
+## Future: user signup flow (draft, Roman 2026-10-03) — not built
+Now: one account, set in env. Later: many users sign up.
+Assumption: Thumbtack gives only "log in + approve" — no business picker, no API to find the connected
+business, no webhook registration by API in production.
+1. Sign up on handyagent.dev → Handy Agent account.
+2. We show the user's own webhook URL `https://api.handyagent.dev/webhooks/thumbtack/<account-key>`
+   (+ basic-auth credentials). The user adds it at thumbtack.com/pro/webhooks/list, events: leads +
+   messages — the same self-serve setup Roman did.
+3. "Connect Thumbtack" — part of signup; signup isn't done without it. OAuth login + approve on
+   Thumbtack (the user grants Handy Agent scopes: read leads, read/send messages, `offline_access`) →
+   back to our callback. Tokens stored under the user's account; this is the first API connection
+   and is needed to send replies. Keys: one Handy Agent key set (prod + staging) for all users — never
+   per user.
+4. The business is learned from the first webhook delivery: the payload carries
+   `business{businessID, displayName}` (seen in real deliveries). Until then: "waiting for first lead".
+5. Business profile + settings, Telegram connect, plan/payment.
+6. Live: webhook → account from the URL key → agent replies with that account's tokens.
+
+### Investigate (Thumbtack)
+- What the OAuth consent screen shows; can a pro with several businesses pick one.
+- An API call that returns the connected user/business after OAuth.
+- Webhook registration by API in production (docs show it for staging).
+- Can one pro have two active logins (e.g. local + a stage).
+- Self-serve webhook auth options (Roman picked "none"; basic auth?).

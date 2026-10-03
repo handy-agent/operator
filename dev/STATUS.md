@@ -3,7 +3,8 @@
 ## 2026-09-30 — Thumbtack connection (webhook proven, API next)
 
 Goal set by Roman: prove the Thumbtack connection first (webhook + API calls); deploy only after that.
-Deploy config will live in a separate deploy repo; production and testing code stay here.
+Deploy: `../operator-deploy` (built 2026-10-03; develop infra up, server stopped until the API keys
+arrive — status in its `PLAN.md`).
 
 ### Done
 - A real Direct Lead on production Thumbtack for testing.
@@ -25,8 +26,10 @@ Roman replied by hand in the Thumbtack app → `from: "Business"` → Operator m
 2. ~~Named Cloudflare tunnel~~ — DONE 2026-09-30: `https://local.handyagent.dev` (tunnel `handyagent-local`,
    `sh/local-tunnel.sh`, run by `sh/tunnel-service.sh`). Thumbtack webhook switched to it (Roman, 2026-10-01).
 3. Thumbtack Partner API access requested 2026-10-01, waiting for review.
-   Redirect URIs = `https://local.handyagent.dev/oauth/thumbtack/callback` and `https://api.handyagent.dev/oauth/thumbtack/callback`;
-   environments: Production + Staging.
+   Redirect URI requested: only `https://local.handyagent.dev/oauth/thumbtack/callback`; environments:
+   Production + Staging. TODO: add the `dev-api.`, `demo-api.` and `api.handyagent.dev` redirects later
+   (see REQUIREMENTS "Stages × Thumbtack") — a new request takes ~a week, so use `local.handyagent.dev`
+   until then (Roman, 2026-10-02).
 4. Leads events: Roman set up the webhook 2026-10-01 (confirm leads included). Add **leads** to the webhook, so we record a `NegotiationCreatedV4` payload.
 5. When keys arrive: Roman puts `THUMBTACK_CLIENT_ID` / `THUMBTACK_CLIENT_SECRET` in `.env` himself;
    build the OAuth Authorization Code flow (callback route + token storage/refresh); set

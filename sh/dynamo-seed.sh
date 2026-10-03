@@ -4,7 +4,7 @@
 #       Which DynamoDB: from the environment / .env — locally DynamoDB Local (DYNAMODB_ENDPOINT_URL);
 #       for a stage, the deploy sets DYNAMODB_TABLE + AWS credentials and leaves the endpoint empty.
 # When: Automatically when sh/dynamo-local.sh creates a fresh local table; by hand after the seed files
-#       change (e.g. sh/import-thumbtack-prices.sh); per stage on deploy.
+#       change (e.g. sh/import-thumbtack-prices.sh); per AWS stage on its first init (operator-deploy).
 # Called by: sh/dynamo-local.sh; developer / Claude by hand; the deploy (operator-deploy). Usage: sh/dynamo-seed.sh
 set -euo pipefail
 
